@@ -7,15 +7,18 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
-  PanResponder
+  PanResponder,
+  TextInput,
+  FlatList,
+  ScrollView,
 } from "react-native";
 import MapView, { PROVIDER_GOOGLE, Marker } from "react-native-maps";
-import * as Location from "expo-location";
-import NetInfo from "@react-native-community/netinfo";
-import { Ionicons } from "@expo/vector-icons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-
+import * as Location from "expo-location"; // For fetching user location
+import NetInfo from "@react-native-community/netinfo"; // For network status
+import { Ionicons } from "@expo/vector-icons"; // Icons for menu and notifications
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"; // Icons for calendar, and other elements
+import MaterialIcons from "@expo/vector-icons/MaterialIcons"; // Icons for location markers
+import { FontAwesome } from "@expo/vector-icons"; // For user icons on schedule cards
 export default function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [connectionType, setConnectionType] = useState(null);
@@ -25,7 +28,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState(null);
 
   const pan = useRef(new Animated.Value(0)).current;
-  const maxHeight = 300; // Maximum expansion height
+  const maxHeight = 700; // Maximum expansion height
   const minHeight = 160; // Minimum collapsed height
   const dragThreshold = 40; // Height threshold to complete the expansion (1 cm in pixels)
 
@@ -62,22 +65,27 @@ export default function App() {
     setIsOnline((prevState) => !prevState);
   };
   
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+   const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => false, // Ignore taps
+    onMoveShouldSetPanResponder: (e, gestureState) => Math.abs(gestureState.dy) > 5, // Only respond to vertical drag
     onPanResponderMove: (e, gestureState) => {
-      let newHeight = Math.max(minHeight, Math.min(maxHeight, minHeight + gestureState.dy));
-      animation.setValue(newHeight);
+      if (!expanded && gestureState.dy < 0) {
+        let newHeight = Math.max(
+          minHeight,
+          Math.min(maxHeight, minHeight + gestureState.dy)
+        );
+        animation.setValue(newHeight);
+      }
     },
     onPanResponderRelease: (e, gestureState) => {
-      if (-gestureState.dy > dragThreshold) { // Check for upward drag (negative dy)
+      if (gestureState.dy < 0 && -gestureState.dy > dragThreshold) {
         setExpanded(true);
         Animated.timing(animation, {
           toValue: maxHeight,
           duration: 300,
           useNativeDriver: false,
         }).start();
-      } else {
+      } else if (gestureState.dy > dragThreshold) {
         setExpanded(false);
         Animated.timing(animation, {
           toValue: minHeight,
@@ -86,8 +94,8 @@ export default function App() {
         }).start();
       }
     },
-    
   });
+
 
   return (
     <View style={styles.container}>
@@ -124,10 +132,14 @@ export default function App() {
 
       {/* Status and Expandable Container */}
       <Animated.View
-        style={[styles.statusContainer, { height: animation }]}
+        style={[styles.expandableContainer, { height: animation }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.shortLine} />
+        <Text style={styles.statusText}>
+            You're {isOnline ? "Online" : "Offline"}
+          </Text>
+          <View style={styles.longLine} />
         {!expanded && (
           <Text style={styles.statusText}>
             You're {isOnline ? "Online" : "Offline"}
@@ -136,14 +148,85 @@ export default function App() {
 
         {expanded && isOnline && (
           <View style={styles.bookingInfo}>
-            <Text style={styles.bookingText}>Plan Your Upcoming Trip</Text>
-            <TouchableOpacity style={styles.bookButton}>
-              <Text style={styles.bookButtonText}>Book Now</Text>
+          {/* Title and Subtitle */}
+          <Text style={styles.bookingText}>Set up your upcoming trip</Text>
+          <Text style={styles.bookingSubText}>
+            Tell us about your trip and help transport goods to everyone
+          </Text>
+        
+          {/* Destination Input */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Your destination"
+              placeholderTextColor="#aaa"
+            />
+            <TouchableOpacity style={styles.iconContainer}>
+              <MaterialIcons name="location-on" size={20} color="#B0BEC5" />
             </TouchableOpacity>
           </View>
+        
+          {/* "Set Up" Button */}
+          <TouchableOpacity style={styles.setUpButton}>
+            <Text style={styles.setUpButtonText}>Set Up</Text>
+          </TouchableOpacity>
+        
+          {/* Schedule Section */}
+          <View style={styles.scheduleContainer}>
+            <Text style={styles.scheduleTitle}>My schedule</Text>
+            <Text style={styles.scheduleSubtitle}>Upcoming</Text>
+        
+            {/* Booking Info Card */}
+            <View style={styles.scheduleCard}>
+              <View style={styles.cardHeader}>
+                <FontAwesome name="users" size={24} color="#007AFF" />
+                <Text style={styles.cardTitle}>15/07/2023 | San Jose</Text>
+              </View>
+        
+              {/* Address List */}
+              <View style={styles.addressContainer}>
+                {/* Start Address */}
+                <View style={styles.addressRow}>
+                  <MaterialIcons name="circle" size={12} color="green" />
+                  <View style={styles.addressDetails}>
+                    <Text style={styles.addressTitle}>8 County Road 11/6</Text>
+                    <Text style={styles.addressSubtitle}>
+                      Mannington, WV, 26582 United States
+                    </Text>
+                  </View>
+                </View>
+        
+                {/* Stop (optional) */}
+                <View style={styles.addressRow}>
+                  <MaterialIcons name="more-vert" size={12} color="gray" />
+                </View>
+        
+                {/* End Address */}
+                <View style={styles.addressRow}>
+                  <MaterialIcons name="place" size={12} color="red" />
+                  <View style={styles.addressDetails}>
+                    <Text style={styles.addressTitle}>1124 Cave Road</Text>
+                    <Text style={styles.addressSubtitle}>
+                      Gillette, WV, 26582 United States
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+        
+            {/* See All Schedule */}
+            <TouchableOpacity>
+              <Text style={styles.seeAll}>See all schedule</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
         )}
 
-        <View style={styles.longLine} />
+       
+      </Animated.View>
+      <View style= {styles.statusContainer}>
+      <View style={styles.longLine} />
         <View style={styles.toggleContainer}>
           <TouchableOpacity style={styles.iconBox2}>
             <MaterialCommunityIcons
@@ -161,8 +244,10 @@ export default function App() {
             <MaterialIcons name="display-settings" size={24} color="black" />
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
+      
     </View>
+    
   );
 }
 const styles = StyleSheet.create({
@@ -213,6 +298,20 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 5,
   },
+  expandableContainer:{
+    position: 'absolute',
+    bottom:27,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 5,
+  },
   longLine: {
     width: '200%',
     height: 2,
@@ -252,7 +351,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 20,
     alignItems: 'center',
-    backgroundColor: '#42F45D',
+    backgroundColor: '#32CD32',
     margin: 10,
   },
   toggleButtonText: {
@@ -270,23 +369,103 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  bookingInfo: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  bookingText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#212121',
-  },
-  bookButton: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#4285F4',
-    borderRadius: 10,
-  },
-  bookButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
+    bookingInfo: {
+      padding: 16,
+      backgroundColor: '#fff',
+    },
+    bookingText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 4,
+    },
+    bookingSubText: {
+      fontSize: 14,
+      color: '#555',
+      marginBottom: 16,
+    },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#F9F9F9',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 16,
+    },
+    input: {
+      flex: 1,
+      fontSize: 14,
+      color: '#000',
+    },
+    iconContainer: {
+      marginLeft: 8,
+    },
+    setUpButton: {
+      backgroundColor: '#32CD32',
+      borderRadius: 8,
+      paddingVertical: 10,
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    setUpButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    scheduleContainer: {
+      marginTop: 16,
+    },
+    scheduleTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 4,
+    },
+    scheduleSubtitle: {
+      fontSize: 16,
+      color: '#555',
+      marginBottom: 16,
+    },
+    scheduleCard: {
+      backgroundColor: '#F9F9F9',
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 8,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    cardTitle: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      marginLeft: 8,
+    },
+    addressContainer: {
+      marginLeft: 16,
+    },
+    addressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    addressDetails: {
+      marginLeft: 8,
+    },
+    addressTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    addressSubtitle: {
+      fontSize: 12,
+      color: 'gray',
+    },
+    seeAll: {
+      color: '#007AFF',
+      fontSize: 14,
+      marginTop: 8,
+      alignSelf: 'center',
+    },
+
+  
 });
